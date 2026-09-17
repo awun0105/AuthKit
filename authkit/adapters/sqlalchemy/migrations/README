@@ -1,0 +1,2 @@
+AuthKit-owned Alembic migrations. Run through `authkit db ...`; do not point a
+consumer application's Alembic version table at this directory.

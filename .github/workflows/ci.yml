@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: authkit
+          POSTGRES_PASSWORD: authkit
+          POSTGRES_DB: authkit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authkit -d authkit_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AUTHKIT_TEST_POSTGRES_URL: postgresql+asyncpg://authkit:authkit@127.0.0.1:5432/authkit_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --frozen
+      - run: uv run ruff check authkit tests
+      - run: uv run mypy authkit
+      - run: uv run pytest -m "not postgres"
+      - run: uv run pytest -m postgres
+      - run: uv build

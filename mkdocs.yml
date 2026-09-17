@@ -1,0 +1,53 @@
+site_name: AuthKit
+site_description: Reusable authentication, identity, sessions, and authorization for FastAPI.
+site_url: https://awun0105.github.io/AuthKit
+repo_url: https://github.com/awun0105/AuthKit
+repo_name: awun0105/AuthKit
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Configuration: configuration.md
+  - Authentication: authentication.md
+  - Authorization: authorization.md
+  - SQLAlchemy: sqlalchemy.md
+  - Migrations: migrations.md
+  - OAuth: oauth.md
+  - MFA: mfa.md
+  - Modular monolith: modular-monolith.md
+  - Extending: extending.md
+  - Security: security.md
+  - API reference: api-reference.md
+  - Upstream audit: upstream-audit.md
+  - Final report: final-report.md

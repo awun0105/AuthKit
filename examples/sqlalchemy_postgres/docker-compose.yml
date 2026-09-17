@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: authkit
+      POSTGRES_PASSWORD: authkit
+      POSTGRES_DB: authkit
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authkit -d authkit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
