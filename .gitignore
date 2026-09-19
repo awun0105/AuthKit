@@ -11,3 +11,9 @@ dist/
 .env.*
 *.pem
 ../__pycache__/
+node_modules/
+.next/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo

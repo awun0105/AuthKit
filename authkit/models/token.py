@@ -37,9 +37,13 @@ class TokenPair(BaseModel):
 
 
 class RefreshTokenRequest(BaseModel):
-    """Request body for POST /auth/refresh."""
+    """Request body for POST /auth/refresh.
 
-    refresh_token: str
+    ``refresh_token`` may be omitted when browser cookie mode is enabled
+    and the HttpOnly refresh cookie is present.
+    """
+
+    refresh_token: str | None = None
 
 
 class LogoutRequest(BaseModel):

@@ -6,7 +6,9 @@ import argparse
 import asyncio
 import getpass
 import os
+import shutil
 from collections.abc import Sequence
+from pathlib import Path
 
 
 def _database_url(args: argparse.Namespace) -> str:
@@ -85,6 +87,37 @@ def _create_admin(args: argparse.Namespace) -> None:
     asyncio.run(_create_admin_async(args))
 
 
+def _ui_init(args: argparse.Namespace) -> None:
+    repo = Path(__file__).resolve().parents[1]
+    source = repo / "packages" / "cli" / "templates" / args.framework
+    if not source.is_dir():
+        raise SystemExit(
+            "AuthKit UI templates are not in this Python install. "
+            "From a JS project run: pnpm dlx @authkit/cli init --framework nextjs"
+        )
+    dest = Path(args.dir).resolve()
+    created = skipped = 0
+    for path in source.rglob("*"):
+        if not path.is_file():
+            continue
+        target = dest / path.relative_to(source)
+        existed = target.exists()
+        if existed and not args.force:
+            print(f"skip\t{target.relative_to(dest)}")
+            skipped += 1
+            continue
+        action = "overwrite" if existed else "create"
+        if args.dry_run:
+            print(f"{action}\t{target.relative_to(dest)}")
+            created += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+        print(f"{action}\t{target.relative_to(dest)}")
+        created += 1
+    print(f"AuthKit UI init: {created} written, {skipped} skipped")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="authkit")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -108,6 +141,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicitly promote an existing identity instead of refusing",
     )
     admin.set_defaults(handler=_create_admin)
+
+    ui = subparsers.add_parser("ui", help="scaffold source-owned authentication UI")
+    ui_sub = ui.add_subparsers(dest="ui_action", required=True)
+    init = ui_sub.add_parser("init")
+    init.add_argument("--framework", choices=("nextjs",), default="nextjs")
+    init.add_argument("--dir", default=".")
+    init.add_argument("--dry-run", action="store_true")
+    init.add_argument("--force", action="store_true")
+    init.set_defaults(handler=_ui_init)
     return parser
 
 

@@ -55,6 +55,9 @@ Retained from AuthWarden, renamed into the `authkit` namespace:
 - Audit sink protocol plus SQLAlchemy/memory sinks
 - In-process events and `AuthGateway` / `AuthUser`
 - Packaged examples, rewritten docs, GitHub Actions PostgreSQL CI
+- Full-stack workspace packages: `@authkit/client`, `@authkit/react`,
+  `@authkit/nextjs`, and source-owned Next.js UI scaffolding via
+  `@authkit/cli`
 - Public-API e2e coverage and a clean-install consumer smoke test
 
 ## D. Reference repository usage
@@ -158,33 +161,40 @@ not stored.
 
 ## I. Validation
 
-Ran from this workspace on 2026-09-18 (Python 3.11.14). Tests were not run
-against a live PostgreSQL server here; CI is configured to do that with a
-Postgres 16 service container.
+Ran from this workspace on 2026-09-19 (Python 3.11.14).
 
 ```text
 .venv/bin/ruff check authkit tests
   All checks passed
 
 .venv/bin/mypy --config-file pyproject.toml authkit
-  Success: no issues found in 90 source files
+  Success: no issues found in 91 source files
 
 .venv/bin/pytest -m "not postgres" -q
-  399 passed, 1 deselected, 3 warnings in 49.39s
+  406 passed, 1 deselected, 3 warnings
 
 .venv/bin/pytest -m postgres -q
-  1 skipped (AUTHKIT_TEST_POSTGRES_URL unset), 399 deselected
+  1 passed, 406 deselected, 3 warnings
+
+pnpm test
+  client 9 passed; react 4 passed; nextjs 3 passed; cli 4 passed
+
+pnpm lint && pnpm typecheck && pnpm build
+  ESLint, React Hooks rules, TypeScript, and all four package builds passed
 
 uv build
   dist/authkit-1.0.0.tar.gz
   dist/authkit-1.0.0-py3-none-any.whl
 ```
 
-The 399 passing tests include the preserved AuthWarden phase suite, SQLAlchemy
+The 406 passing tests include the preserved AuthWarden phase suite, SQLAlchemy
 migration/RBAC/admin/CLI coverage, a public-API e2e flow, and a clean-install
 consumer smoke test that installs `authkit[sqlalchemy]` into a temporary venv
 and exercises register → login → me → permission → refresh → logout without
-importing ORM internals.
+importing ORM internals. The PostgreSQL marker passed against a local PostgreSQL
+16 container. The full-stack Playwright suite starts both servers and passed
+three browser flows, including expiry-driven refresh-cookie restoration and
+rendering every public authentication page.
 
 ## J. Remaining limitations
 
@@ -197,6 +207,17 @@ importing ORM internals.
 - OAuth libraries remain in the base extra set because they were already core
   AuthWarden dependencies; there is no separate `authkit[oauth]` extra.
 - V1 does not include multi-tenancy, SAML, an OIDC authorization server, ABAC,
-  ReBAC, a policy DSL, or a frontend package.
-- Cookie-based token storage and CSRF defenses remain consumer responsibilities.
+  ReBAC, or a policy DSL.
+- The default UI is a source scaffold, not a general design system. Consumers
+  remain responsible for production CORS/origin policy and setting Secure
+  cookies outside localhost.
 - PostgreSQL tests require `AUTHKIT_TEST_POSTGRES_URL` (provided in CI).
+- Package publication was not performed. Clean temporary consumers installed
+  the final local wheel and JavaScript tarballs instead.
+- Live OAuth provider acceptance still requires consumer-owned provider
+  credentials and registered redirect URIs; CI verifies state/PKCE/callback
+  contracts with mocked providers.
+- The current Authlib/FastAPI dependency set emits upstream deprecation
+  warnings about their transitional httpx integrations; validation passes,
+  but those warnings should be revisited when upstream dependency migrations
+  stabilize.

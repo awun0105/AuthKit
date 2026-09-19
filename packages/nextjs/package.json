@@ -1,0 +1,36 @@
+{
+  "name": "@authkit/nextjs",
+  "version": "1.0.0",
+  "description": "Next.js App Router helpers for AuthKit",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "prebuild": "pnpm --filter @authkit/client build",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "pnpm --filter @authkit/client build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "pnpm --filter @authkit/client build",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "next": ">=14"
+  },
+  "dependencies": {
+    "@authkit/client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "next": "^15.1.3",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

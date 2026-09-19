@@ -1,10 +1,10 @@
 """OAuth router for authkit.
  
 The /authorize endpoint serves both the public login flow and the
-authenticated connect flow from a single route: if a valid Bearer token
-is present, it builds state with purpose="connect" (linking to that
-user); otherwise purpose="login" (public auth). The callback/connect
-endpoints below already validate purpose strictly, so this is safe.
+authenticated connect flow from a single route: if a Bearer token is
+present, it must be valid and builds state with purpose="connect". An
+invalid token is never downgraded to a public login flow because doing so
+would create purpose-confused state and break safe account linking.
 """
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ from authkit.authentication.oauth import OAuthProviderBase
 from authkit.authentication.oauth_state import AbstractOAuthStateStore
 from authkit.core.config import AuthKitConfig
 from authkit.events import AuthEvent, EventSink
-from authkit.exceptions import AuthError
 from authkit.flows.oauth_accounts import list_oauth_accounts_flow
 from authkit.flows.oauth_authorize import oauth_authorize_flow
 from authkit.flows.oauth_callback import oauth_callback_flow
@@ -30,10 +29,12 @@ from authkit.models.requests import (
   OAuthAuthorizeResponse,
   OAuthCallbackRequest,
   OAuthCallbackResponse,
+  OAuthProviderPublic,
 )
 from authkit.models.user import OAuthAccountRead, UserInDB
 from authkit.notifications.service import AbstractNotificationService
 from authkit.routers._errors import handle_auth_errors
+from authkit.routers.cookies import set_refresh_cookies
 from authkit.session.refresh import RefreshTokenStore
 from authkit.storage.base import AbstractUserStore
 
@@ -59,6 +60,11 @@ def build_oauth_router(
   """
   router = APIRouter(prefix="/oauth")
 
+  @router.get("/providers", response_model=list[OAuthProviderPublic])
+  async def list_providers() -> list[OAuthProviderPublic]:
+    """Public list of enabled OAuth provider names."""
+    return [OAuthProviderPublic(name=name) for name in providers]
+
   @router.get("/accounts", response_model=list[OAuthAccountRead])
   @handle_auth_errors
   async def list_accounts(user: UserInDB = Depends(get_current_user)) -> list[OAuthAccountRead]:
@@ -73,20 +79,17 @@ def build_oauth_router(
   ) -> OAuthAuthorizeResponse:
       """Get the provider's authorization URL.
 
-      If called with a valid Bearer token, builds state for the connect
-      flow (linking to that user). Otherwise builds state for public login.
+      If called with a Bearer token, requires it to be valid and builds state
+      for the connect flow. With no credentials, builds public login state.
       """
       purpose: Literal["login", "connect"] = "login"
       user_id = None
       if credentials is not None:
-         try:
-            payload = await jwt_handler.verify_token(
-               credentials.credentials, expected_type="access"
-            )
-            purpose = "connect"
-            user_id = payload.sub
-         except AuthError:
-            pass # invalid/expired token on a public endpoint = - fall back to login
+         payload = await jwt_handler.verify_token(
+            credentials.credentials, expected_type="access"
+         )
+         purpose = "connect"
+         user_id = payload.sub
          
       url = await oauth_authorize_flow(
          provider, config=config, providers=providers, state_store=state_store,
@@ -96,7 +99,9 @@ def build_oauth_router(
 
   @router.post("/{provider}/callback", response_model=OAuthCallbackResponse)
   @handle_auth_errors
-  async def callback(provider: str, data: OAuthCallbackRequest) -> OAuthCallbackResponse:
+  async def callback(
+    provider: str, data: OAuthCallbackRequest, response: Response,
+  ) -> OAuthCallbackResponse:
     """Complete OAuth login — exchanges code, resolves account linking."""
     result = await oauth_callback_flow(
       provider, data.code, data.state, store=store, config=config,
@@ -107,6 +112,7 @@ def build_oauth_router(
     await audit.write(AuditEvent(action="oauth.login_succeeded", user_id=result.user.id))
     if result.is_new_user:
       await events.publish(AuthEvent(name="UserRegistered", user_id=result.user.id, data={"via": "oauth"}))
+    set_refresh_cookies(response, result.token_pair.refresh_token, config)
     return OAuthCallbackResponse(
       access_token=result.token_pair.access_token,
       refresh_token=result.token_pair.refresh_token,

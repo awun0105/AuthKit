@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def _default_login_fields() -> list[Literal["email", "username", "phone"]]:
@@ -152,12 +152,27 @@ class AuthKitConfig(BaseModel):
   # ── Optional administration surface ──────────────────────────────────────
   enable_admin_router: bool = False
 
+  # ── Browser refresh-cookie mode (off by default; Bearer body still works) ─
+  enable_refresh_cookie: bool = False
+  refresh_cookie_name: str = "authkit_refresh"
+  refresh_cookie_secure: bool = True
+  refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+  refresh_cookie_path: str = "/"
+  refresh_cookie_domain: str | None = None
+  authenticated_cookie_name: str = "authkit_authenticated"
+
   @field_validator("secret_key")
   @classmethod
   def validate_secret_key(cls, value: str) -> str:
       if len(value.encode("utf-8")) < 32:
           raise ValueError("secret_key must contain at least 32 bytes")
       return value
+
+  @model_validator(mode="after")
+  def validate_cookie_security(self) -> AuthKitConfig:
+      if self.refresh_cookie_samesite == "none" and not self.refresh_cookie_secure:
+          raise ValueError("SameSite=None refresh cookies must also set Secure")
+      return self
 
   @classmethod
   def from_env(

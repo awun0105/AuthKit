@@ -6,15 +6,31 @@ to FastAPI HTTPException. Never raise raw HTTPException outside routers.
 """
 from __future__ import annotations
 
+import re
+
 
 class AuthError(Exception):
   """Base class for all authkit errors."""
   status_code: int = 400
   detail: str     = "Authentication error"
+  code: str = "UNKNOWN_ERROR"
 
   def __init__(self, detail: str | None = None) -> None:
     self.detail = detail or self.__class__.detail
     super().__init__(self.detail)
+
+  def __init_subclass__(cls, **kwargs: object) -> None:
+    super().__init_subclass__(**kwargs)
+    if "code" not in cls.__dict__:
+      code = re.sub(
+        r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])",
+        "_",
+        cls.__name__,
+      ).upper()
+      # ``OAuth`` is a word-like initialism (unlike all-caps ``MFA``), so a
+      # generic CamelCase splitter sees it as ``O_Auth``. Keep public error
+      # codes conventional and stable.
+      cls.code = f"OAUTH{code[6:]}" if code.startswith("O_AUTH") else code
 
 # ---- Registration -------------------------------------------
 class EmailAlreadyExists(AuthError):
@@ -76,6 +92,7 @@ class InvalidCredentials(AuthError):
 
   status_code = 401
   detail = "Invalid credentials."
+  code = "INVALID_CREDENTIALS"
 
 class AccountLocked(AuthError):
   """Raised when too many failed login attempts trigger the account lockout policy."""
@@ -89,6 +106,7 @@ class EmailNotVerified(AuthError):
 
   status_code = 403
   detail = "Email address is not verified."
+  code = "EMAIL_NOT_VERIFIED"
 
 
 class AccountInactive(AuthError):
@@ -96,6 +114,7 @@ class AccountInactive(AuthError):
 
   status_code = 403
   detail = "This account has been deactivated"
+  code = "ACCOUNT_DISABLED"
 
 
 class InvalidMFACode(AuthError):
@@ -103,6 +122,7 @@ class InvalidMFACode(AuthError):
 
   status_code = 401
   detail = "Invalid MFA code."
+  code = "INVALID_MFA_CODE"
 
 
 class MFARequired(AuthError):
@@ -110,6 +130,7 @@ class MFARequired(AuthError):
 
   status_code = 403
   detail = "MFA code is required."
+  code = "MFA_REQUIRED"
 
 
 # ── Tokens ────────────────────────────────────────────────────────────────────
@@ -126,6 +147,7 @@ class TokenExpired(AuthError):
  
     status_code = 400
     detail = "Token has expired"
+    code = "TOKEN_EXPIRED"
  
  
 class TokenRevoked(AuthError):
@@ -140,6 +162,7 @@ class TokenAlreadyUsed(AuthError):
  
     status_code = 400
     detail = "Token has already been used"
+    code = "INVALID_RESET_TOKEN"
  
  
 # ── Password flows ────────────────────────────────────────────────────────────
@@ -179,6 +202,7 @@ class ForbiddenError(AuthError):
  
     status_code = 403
     detail = "You do not have permission to perform this action"
+    code = "PERMISSION_DENIED"
 
 
 # ── MFA ───────────────────────────────────────────────────────────

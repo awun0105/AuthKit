@@ -29,6 +29,10 @@ def handle_auth_errors(func: Callable[..., Awaitable[T]]) -> Callable[..., Await
     try:
       return await func(*args, **kwargs)
     except AuthError as e:
-      raise HTTPException(status_code=e.status_code, detail=e.detail)
+      raise HTTPException(
+          status_code=e.status_code,
+          detail=e.detail,
+          headers={"X-AuthKit-Error": e.code},
+      )
   
   return wrapper

@@ -6,6 +6,9 @@ and models/token.py focused on the storage-facing schemas.
 """
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel
 
 from authkit.models.user import UserRead
@@ -117,3 +120,28 @@ class OAuthCallbackResponse(BaseModel):
 class MessageResponse(BaseModel):
   """Generic success message for fire-and-forget endpoints."""
   detail: str
+
+
+class PublicAuthConfig(BaseModel):
+  """Non-secret configuration the frontend needs to render the right screens."""
+
+  allow_registration: bool
+  require_email_verification: bool
+  verification_method: Literal["link", "otp"]
+  password_reset_method: Literal["link", "otp"]
+  enable_mfa: bool
+  oauth_providers: list[str]
+  refresh_cookie: bool
+
+
+class SessionRead(BaseModel):
+  """Public session row for the account-security page."""
+
+  session_id: str
+  user_agent: str | None
+  issued_at: datetime
+  expires_at: datetime
+
+
+class OAuthProviderPublic(BaseModel):
+  name: str

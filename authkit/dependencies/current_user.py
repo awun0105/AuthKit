@@ -46,7 +46,11 @@ def build_get_token_payload(jwt_handler: JWTHandler) -> Callable:
         credentials.credentials, expected_type="access"
       )
     except AuthError as e:
-      raise HTTPException(status_code=e.status_code, detail=e.detail)
+      raise HTTPException(
+        status_code=e.status_code,
+        detail=e.detail,
+        headers={"X-AuthKit-Error": e.code},
+      )
     
   return get_token_payload
 
@@ -75,11 +79,15 @@ def build_get_current_user(
     user = await store.get_by_id(payload.sub)
     if user is None:
       raise HTTPException(
-        status_code=UserNotFound.status_code, detail=UserNotFound.detail
+        status_code=UserNotFound.status_code,
+        detail=UserNotFound.detail,
+        headers={"X-AuthKit-Error": UserNotFound.code},
       )
     if not user.is_active:
       raise HTTPException(
-        status_code=AccountInactive.status_code, detail=AccountInactive.detail
+        status_code=AccountInactive.status_code,
+        detail=AccountInactive.detail,
+        headers={"X-AuthKit-Error": AccountInactive.code},
       )
     return user
   return get_current_user

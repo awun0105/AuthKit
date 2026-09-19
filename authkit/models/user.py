@@ -61,6 +61,7 @@ class UserRead(UserBase):
     roles: list[str]
     scopes: list[str]
     mfa_enabled: bool
+    has_password: bool = True
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -134,6 +135,7 @@ class UserInDB(UserBase):
             full_name=self.full_name, is_active=self.is_active,
             is_verified=self.is_verified, is_superuser=self.is_superuser,
             roles=self.roles, scopes=self.scopes, mfa_enabled=self.mfa_enabled,
+            has_password=self.hashed_password is not None,
             created_at=self.created_at, updated_at=self.updated_at,
         )
 

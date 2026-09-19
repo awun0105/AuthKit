@@ -26,6 +26,7 @@ from authkit.exceptions import (
   InvalidMFACode,
   InvalidToken,
   LastLoginMethod,
+  MFANotEnabled,
   MFARequired,
   OAuthCodeExchangeFailed,
   OAuthProviderNotConfigured,
@@ -108,6 +109,13 @@ class TestExceptions:
       assert OAuthStateMismatch().status_code == 400
       assert OAuthCodeExchangeFailed().status_code == 502
       assert LastLoginMethod().status_code == 400
+      assert InvalidCredentials().code == "INVALID_CREDENTIALS"
+      assert AccountInactive().code == "ACCOUNT_DISABLED"
+      assert MFARequired().code == "MFA_REQUIRED"
+      assert TokenExpired().code == "TOKEN_EXPIRED"
+      assert ForbiddenError().code == "PERMISSION_DENIED"
+      assert OAuthStateMismatch().code == "OAUTH_STATE_MISMATCH"
+      assert MFANotEnabled().code == "MFA_NOT_ENABLED"
 
   def test_exception_is_catchable_as_auth_error(self):
       """Subclasses can be caught as AuthError."""
@@ -269,6 +277,8 @@ class TestAuthKitConfig:
       assert config.enable_mfa is False
       assert config.oauth_providers == {}
       assert config.auto_link_by_email is True
+      assert config.enable_refresh_cookie is False
+      assert config.refresh_cookie_secure is True
 
   def test_oauth_provider_config(self):
       """OAuthProviderConfig stores provider credentials."""
@@ -279,6 +289,15 @@ class TestAuthKitConfig:
       )
       assert provider.enabled is True
       assert provider.scopes == []
+
+  def test_samesite_none_cookie_requires_secure(self):
+      with pytest.raises(ValueError, match="SameSite=None"):
+          AuthKitConfig(
+              secret_key="test-secret-at-least-32-bytes-long",
+              enable_refresh_cookie=True,
+              refresh_cookie_samesite="none",
+              refresh_cookie_secure=False,
+          )
 
   def test_oauth_provider_disabled(self):
       """OAuthProviderConfig can be disabled."""

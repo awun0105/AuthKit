@@ -34,3 +34,25 @@ jobs:
       - run: uv run pytest -m "not postgres"
       - run: uv run pytest -m postgres
       - run: uv build
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --frozen
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm --filter authkit-fullstack-nextjs-example build
+      - run: pnpm --filter authkit-fullstack-nextjs-example exec playwright install --with-deps chromium
+      - run: pnpm --filter authkit-fullstack-nextjs-example test:e2e

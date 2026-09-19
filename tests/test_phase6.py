@@ -74,7 +74,7 @@ class TestRouterAssembly:
                 elif hasattr(r, "path"):
                     total += 1
             return total
-        assert count(auth.router) == 20
+        assert count(auth.router) == 24
 
     def test_app_mounts_without_error(self, auth):
         app = make_app(auth)
@@ -154,6 +154,7 @@ class TestProtectedRoutes:
 
         r = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 403  # still-valid token, but account now inactive
+        assert r.headers["x-authkit-error"] == "ACCOUNT_DISABLED"
 
 
 class TestRolesAndScopes:
@@ -312,6 +313,16 @@ class TestOAuthEndpoints:
         assert r.status_code == 200
         # one state entry created, purpose=connect (verified indirectly via no error)
         assert auth_oauth.oauth_state_store.size == 1
+
+    def test_authorize_does_not_downgrade_invalid_auth_to_login(self, auth_oauth):
+        client = TestClient(make_app(auth_oauth))
+        r = client.get(
+            "/auth/oauth/google/authorize",
+            headers={"Authorization": "Bearer invalid-token"},
+        )
+        assert r.status_code == 400
+        assert r.headers["x-authkit-error"] == "INVALID_TOKEN"
+        assert auth_oauth.oauth_state_store.size == 0
 
     def test_accounts_list_requires_auth_401(self, auth_oauth):
         client = TestClient(make_app(auth_oauth))

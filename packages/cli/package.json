@@ -1,0 +1,21 @@
+{
+  "name": "@authkit/cli",
+  "version": "1.0.0",
+  "description": "Scaffold source-owned AuthKit Next.js authentication UI",
+  "type": "module",
+  "bin": {
+    "authkit-ui": "./dist/index.js"
+  },
+  "files": ["dist", "templates"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

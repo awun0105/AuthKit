@@ -1,6 +1,6 @@
 # API Reference
 
-The base router exposes 20 authentication/MFA/OAuth endpoints. The optional
+The base router exposes 24 authentication/MFA/OAuth endpoints. The optional
 admin router adds management endpoints only when explicitly enabled.
 
 ## Auth
@@ -11,6 +11,9 @@ admin router adds management endpoints only when explicitly enabled.
 | POST | `/verify-email` | No | Verification — link mode |
 | POST | `/verify-otp` | No | Verification — OTP mode |
 | POST | `/resend-verification` | No | Resend verification |
+| GET | `/config` | No | Non-secret frontend capability flags |
+| GET | `/me` | Yes | Current public identity |
+| GET | `/sessions` | Yes | Current persisted sessions, when available |
 | POST | `/login` | No | Login |
 | POST | `/logout` | Yes | Logout and revoke |
 | POST | `/refresh` | No¹ | Rotate refresh token |
@@ -20,7 +23,8 @@ admin router adds management endpoints only when explicitly enabled.
 | POST | `/change-password` | Yes | Change and revoke old sessions |
 | POST | `/set-password` | Yes | Set password on OAuth-only account |
 
-¹ Authenticated implicitly via the refresh token in the request body, not a Bearer header.
+¹ Authenticated implicitly via the refresh token in the request body, or via
+the HttpOnly refresh cookie when browser mode is enabled.
 
 ## MFA (`/mfa` prefix)
 
@@ -34,6 +38,7 @@ admin router adds management endpoints only when explicitly enabled.
 
 | Method | Path | Auth required | Description |
 |---|---|---|---|
+| GET | `/oauth/providers` | No | Enabled provider names |
 | GET | `/oauth/accounts` | Yes | [Account linking](oauth/account-linking.md) |
 | GET | `/oauth/{provider}/authorize` | Optional² | [OAuth](oauth.md) |
 | POST | `/oauth/{provider}/callback` | No | [OAuth](oauth.md) |
@@ -85,3 +90,8 @@ Every response body follows FastAPI's standard error shape:
 ```json
 { "detail": "human-readable message" }
 ```
+
+Typed authentication failures additionally expose `X-AuthKit-Error`, which is
+the authoritative input for `AuthKitError.code`. `UserRead` includes
+`has_password` so account-security UI can distinguish password accounts from
+OAuth-only accounts without exposing password hashes or provider tokens.

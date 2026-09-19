@@ -25,11 +25,16 @@ change/reset revoke every persisted refresh and session for the user.
 Login records the request User-Agent and a SHA-256 hash of the client IP
 (preferring `X-Forwarded-For`) on the session. Raw IPs are not stored.
 
-Store browser refresh tokens in Secure, HttpOnly, appropriately SameSite
-cookies where possible; keep access tokens short-lived and avoid persistent
-JavaScript storage. AuthKit's default JSON/bearer transport is not automatically
-sent cross-site. If a consumer moves auth tokens into cookies, that consumer
-must add CSRF protection and review SameSite/CORS behavior.
+Browser mode stores the access token in memory and the refresh token in a
+Secure-by-default, HttpOnly, appropriately SameSite cookie. Refresh/logout requests must
+carry `X-AuthKit-Requested-With: AuthKit`; cross-site HTML forms cannot add
+that header. SameSite is defense in depth rather than the only CSRF control.
+The default JSON/bearer transport remains available for API/mobile clients and
+is not automatically sent cross-site. Production cookie deployments must use
+TLS, `refresh_cookie_secure=True`, exact CORS origins, and
+`allow_credentials=True`; never combine credentialed CORS with `*`.
+`SameSite=None` is rejected unless `Secure` is also enabled. Local HTTP
+examples must explicitly opt out of `Secure`; production must not.
 
 ## Verification and reset tokens
 
@@ -42,6 +47,8 @@ limit.
 
 OAuth authorization uses random, expiring, atomically consumed state plus S256
 PKCE. State is provider/purpose-bound and account-connect state is user-bound.
+An authorize request carrying an invalid bearer token fails; it is never
+downgraded from account-connect intent into a public login state.
 Provider identity is keyed by provider user ID, not trusted email alone.
 Provider tokens are Fernet-encrypted at rest and absent from public DTOs.
 

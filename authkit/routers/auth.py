@@ -35,9 +35,11 @@ from authkit.models.requests import (
   ForgotPasswordRequest,
   LoginRequest,
   MessageResponse,
+  PublicAuthConfig,
   ResendVerificationRequest,
   ResetPasswordOtpRequest,
   ResetPasswordRequest,
+  SessionRead,
   SetPasswordRequest,
   TokenResponse,
   VerifyEmailRequest,
@@ -47,6 +49,12 @@ from authkit.models.token import LogoutRequest, RefreshTokenRequest, TokenPair
 from authkit.models.user import UserCreate, UserInDB, UserRead
 from authkit.notifications.service import AbstractNotificationService
 from authkit.routers._errors import handle_auth_errors
+from authkit.routers.cookies import (
+  clear_refresh_cookies,
+  enforce_cookie_csrf,
+  refresh_token_from_request,
+  set_refresh_cookies,
+)
 from authkit.session.base import AbstractSessionBackend
 from authkit.session.refresh import RefreshTokenStore
 from authkit.storage.base import AbstractUserStore
@@ -139,9 +147,47 @@ def build_auth_router(
     )
     return MessageResponse(detail="If this account exists, a verification message was sent.")
   
+  @router.get("/config", response_model=PublicAuthConfig)
+  async def public_config() -> PublicAuthConfig:
+    """Non-secret settings the frontend uses to render the correct screens."""
+    return PublicAuthConfig(
+      allow_registration=config.allow_registration,
+      require_email_verification=config.require_email_verification,
+      verification_method=config.verification_method,
+      password_reset_method=config.password_reset_method,
+      enable_mfa=config.enable_mfa,
+      oauth_providers=[
+        name for name, provider in config.oauth_providers.items() if provider.enabled
+      ],
+      refresh_cookie=config.enable_refresh_cookie,
+    )
+
+  @router.get("/me", response_model=UserRead)
+  @handle_auth_errors
+  async def me(user: UserInDB = Depends(get_current_user)) -> UserRead:
+    """Return the authenticated user after reloading from storage."""
+    return user.to_read()
+
+  @router.get("/sessions", response_model=list[SessionRead])
+  @handle_auth_errors
+  async def list_sessions(user: UserInDB = Depends(get_current_user)) -> list[SessionRead]:
+    """List active sessions when a session backend is configured."""
+    if session_backend is None:
+      return []
+    sessions = await session_backend.get_all_for_user(user.id)
+    return [
+      SessionRead(
+        session_id=item.session_id,
+        user_agent=item.user_agent,
+        issued_at=item.issued_at,
+        expires_at=item.expires_at,
+      )
+      for item in sessions
+    ]
+
   @router.post("/login", response_model=TokenResponse)
   @handle_auth_errors
-  async def login(data: LoginRequest, request: Request) -> TokenResponse:
+  async def login(data: LoginRequest, request: Request, response: Response) -> TokenResponse:
     """Authenticate and return an access + refresh token pair."""
     user_agent, ip_hash = _request_fingerprint(request)
     try:
@@ -163,6 +209,7 @@ def build_auth_router(
         action="user.login_succeeded", user_id=user.id,
         ip_hash=ip_hash, user_agent=user_agent,
     ))
+    set_refresh_cookies(response, pair.refresh_token, config)
     return TokenResponse(
       access_token=pair.access_token, refresh_token=pair.refresh_token,
       token_type=pair.token_type, user=user
@@ -171,11 +218,20 @@ def build_auth_router(
   @router.post("/logout", status_code=204)
   @handle_auth_errors
   async def logout(
+    request: Request,
+    response: Response,
     data: LogoutRequest | None = None,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)
   ) -> Response:
-    """Revoke the current access toekn (and refresh token if provided)."""
-    refresh_token = data.refresh_token if data else None
+    """Revoke the current access token (and refresh token if provided)."""
+    body_refresh = data.refresh_token if data else None
+    cookie_refresh = (
+      request.cookies.get(config.refresh_cookie_name)
+      if config.enable_refresh_cookie else None
+    )
+    if cookie_refresh and not body_refresh:
+      enforce_cookie_csrf(request)
+    refresh_token = body_refresh or cookie_refresh
     payload = jwt_handler.decode_token(credentials.credentials, expected_type="access")
     await logout_flow(
       credentials.credentials,
@@ -186,14 +242,24 @@ def build_auth_router(
       refresh_token_store=refresh_token_store,
     )
     await audit.write(AuditEvent(action="user.logout", user_id=payload.sub))
-    return Response(status_code=204)
+    clear_refresh_cookies(response, config)
+    # Preserve the response headers carrying the refresh-cookie deletions.
+    response.status_code = 204
+    return response
 
   @router.post("/refresh", response_model=TokenPair)
   @handle_auth_errors
-  async def refresh(data: RefreshTokenRequest) -> TokenPair:
+  async def refresh(
+    request: Request,
+    response: Response,
+    data: RefreshTokenRequest | None = None,
+  ) -> TokenPair:
     """Exchange a valid refresh token for a new token pair."""
+    token = refresh_token_from_request(
+      request, data.refresh_token if data else None, config,
+    )
     pair = await refresh_flow(
-      data.refresh_token,
+      token,
       store=store,
       config=config,
       jwt_handler=jwt_handler,
@@ -201,6 +267,7 @@ def build_auth_router(
     )
     payload = jwt_handler.decode_token(pair.access_token)
     await audit.write(AuditEvent(action="session.refreshed", user_id=payload.sub))
+    set_refresh_cookies(response, pair.refresh_token, config)
     return pair
   
   @router.post("/forgot-password", response_model=MessageResponse)
@@ -240,6 +307,7 @@ def build_auth_router(
   @handle_auth_errors
   async def change_password(
     data: ChangePasswordRequest,
+    response: Response,
     user: UserInDB = Depends(get_current_user),
   ) -> TokenPair:
     """Change password for the authenticated user. Returns a fresh token pair."""
@@ -251,6 +319,7 @@ def build_auth_router(
     )
     await audit.write(AuditEvent(action="password.changed", user_id=user.id))
     await events.publish(AuthEvent(name="PasswordChanged", user_id=user.id))
+    set_refresh_cookies(response, pair.refresh_token, config)
     return pair
   
   @router.post("/set-password", response_model=MessageResponse)

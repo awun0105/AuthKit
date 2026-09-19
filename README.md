@@ -1,8 +1,10 @@
 # AuthKit
 
-AuthKit is a reusable authentication, identity, session, and authorization
-library for FastAPI. It keeps application flows storage-agnostic while shipping
-official in-memory and SQLAlchemy 2.x async backends.
+AuthKit is a reusable full-stack authentication and authorization foundation
+for FastAPI applications, with optional TypeScript/React/Next.js packages.
+The Python library stays storage-agnostic and ships official in-memory and
+SQLAlchemy 2.x async backends. Frontend packages are optional and are never
+installed by `uv add authkit`.
 
 It grew from the MIT-licensed AuthWarden project. AuthWarden's password, JWT,
 OAuth/PKCE, MFA, notification, lockout, anti-enumeration, and single-use token
@@ -12,7 +14,7 @@ AuthKit provides registration, login/logout, access and rotating refresh JWTs,
 password reset/change, verification, optional OAuth and MFA, database-backed
 roles/permissions, sessions, audit events, isolated migrations, a small public
 gateway, and lifecycle events. It is an application library—not an OAuth
-authorization server, IdP, frontend package, or Keycloak replacement.
+authorization server, IdP, general-purpose UI framework, or Keycloak replacement.
 
 ## Install
 
@@ -139,6 +141,19 @@ Do not add patient, student, company, subscription, or other domain fields to
 AuthKit identity tables. See [extension guidance](docs/extending.md) and the
 [modular-monolith example](examples/modular_monolith/).
 
+## Frontend packages (optional)
+
+```bash
+pnpm add @authkit/client @authkit/react @authkit/nextjs
+pnpm dlx @authkit/cli init --framework nextjs
+```
+
+Or from this repository: `authkit ui init --framework nextjs`. Generated pages
+(` /login`, `/register`, …) become source in the consuming app so you can
+change branding and layout without forking AuthKit. A Vite React SPA can use
+`@authkit/client` + `@authkit/react` without Next.js. See
+[full-stack guide](docs/full-stack.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -155,8 +170,22 @@ AuthKit identity tables. See [extension guidance](docs/extending.md) and the
 - [Security](docs/security.md)
 - [Upstream audit](docs/upstream-audit.md)
 - [Final report](docs/final-report.md)
+- [Full-stack / UI](docs/full-stack.md)
 
 ## Development
+
+For the full-stack example, the shortest local workflow is:
+
+```bash
+make setup
+make dev
+```
+
+Useful shortcuts include `make backend`, `make frontend`, `make test`,
+`make check`, `make e2e`, and `make build`. Override `BACKEND_PORT`,
+`FRONTEND_PORT`, or `AUTHKIT_API_URL` when the local defaults are occupied.
+The server targets release their configured TCP ports before starting; you can
+also do this explicitly with `make free-port PORT=8000`.
 
 ```bash
 uv sync --all-extras
